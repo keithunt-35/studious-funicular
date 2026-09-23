@@ -16,6 +16,9 @@
 import {
   doc,
   getDoc,
+  onSnapshot,
+  orderBy,
+  query,
   setDoc,
   updateDoc,
   serverTimestamp,
@@ -23,6 +26,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { UserProfile, UserRole } from "@/types";
+import { usersCollection } from "@/lib/firebase/paths";
 
 // ── Collection name constant ─────────────────────────────────
 // Using a constant prevents typos ("user" vs "users") across files
@@ -173,4 +177,21 @@ export async function ensureUserProfile(data: CreateUserProfileData): Promise<Us
 
   // First time Google sign-in — create their profile
   return createUserProfile(data);
+}
+
+export function subscribeToTeamMembers(
+  onChange: (members: UserProfile[]) => void,
+  onError: (error: Error) => void
+): () => void {
+  return onSnapshot(
+    query(usersCollection(), orderBy("displayName", "asc")),
+    (snapshot) => {
+      onChange(
+        snapshot.docs
+          .map((document) => docToUserProfile(document.id, document.data()))
+          .filter((member) => member.isActive)
+      );
+    },
+    onError
+  );
 }

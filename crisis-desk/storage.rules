@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isTeamLead() {
+      return signedIn()
+        && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['event_lead', 'dept_lead'];
+    }
+
+    match /incidents/{incidentId}/{fileName} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && (isTeamLead()
+          || get(/databases/(default)/documents/incidents/$(incidentId)).data.reportedBy == request.auth.uid);
+      allow delete: if isTeamLead();
+    }
+  }
+}

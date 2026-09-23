@@ -64,6 +64,7 @@ export interface EventDocument {
   name: string;
   venue?: string;
   timezone: string;
+  categories?: string[];
   startsAt?: Date | null;
   endsAt?: Date | null;
   isActive: boolean;
@@ -83,6 +84,7 @@ export interface Incident {
   reportedBy: string;
   assignedTo?: string | null;
   eventId: string;
+  photoUrl?: string | null;
   resolvedBy?: string | null;
   resolutionNotes?: string | null;
   createdAt: Date;
@@ -137,6 +139,7 @@ export interface UpdateIncidentInput {
   category?: string;
   location?: string | null;
   assignedTo?: string | null;
+  photoUrl?: string | null;
   resolvedBy?: string | null;
   resolutionNotes?: string | null;
   resolvedAt?: Date | null;

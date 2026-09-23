@@ -25,6 +25,7 @@ export function documentToIncident(id: string, data: Record<string, unknown>): I
     reportedBy: String(data.reportedBy ?? ""),
     assignedTo: typeof data.assignedTo === "string" ? data.assignedTo : null,
     eventId: String(data.eventId ?? ""),
+    photoUrl: typeof data.photoUrl === "string" ? data.photoUrl : null,
     resolvedBy: typeof data.resolvedBy === "string" ? data.resolvedBy : null,
     resolutionNotes: typeof data.resolutionNotes === "string" ? data.resolutionNotes : null,
     createdAt: timestampToDate(data.createdAt as Incident["createdAt"]),
@@ -53,6 +54,18 @@ export async function getIncident(incidentId: string): Promise<Incident | null> 
   return snapshot.exists() ? documentToIncident(snapshot.id, snapshot.data()) : null;
 }
 
+export function subscribeToIncident(
+  incidentId: string,
+  onChange: (incident: Incident | null) => void,
+  onError: (error: Error) => void
+): () => void {
+  return onSnapshot(
+    incidentDocument(incidentId),
+    (snapshot) => onChange(snapshot.exists() ? documentToIncident(snapshot.id, snapshot.data()) : null),
+    onError
+  );
+}
+
 export async function createIncident(input: CreateIncidentInput): Promise<string> {
   const reference = await addDoc(incidentsCollection(), {
     ...input,
@@ -61,6 +74,7 @@ export async function createIncident(input: CreateIncidentInput): Promise<string
     resolvedBy: null,
     resolutionNotes: null,
     resolvedAt: null,
+    photoUrl: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

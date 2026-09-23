@@ -1,7 +1,7 @@
 import { collection, doc } from "firebase/firestore";
 
 import { FIRESTORE_COLLECTIONS } from "@/constants";
-import { db } from "@/lib/firebase";
+import db from "@/lib/firebase/firestore";
 
 export const usersCollection = () => collection(db, FIRESTORE_COLLECTIONS.users);
 export const userDocument = (uid: string) => doc(db, FIRESTORE_COLLECTIONS.users, uid);

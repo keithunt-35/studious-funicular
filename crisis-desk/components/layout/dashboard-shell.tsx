@@ -90,9 +90,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} onClick={onNavigate} className={cn("flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground")}>
-              <Icon className="size-[18px]" strokeWidth={isActive ? 2.2 : 1.8} />
+                 <Icon className="size-[18px]" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
               {item.label}
-              {item.label === "Incidents" && <span className="ml-auto rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">0</span>}
             </Link>
           );
         })}
@@ -142,10 +141,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
       {mobileOpen && <div className="fixed inset-0 z-50 lg:hidden"><button aria-label="Close navigation" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} /><div className="relative h-full w-[min(82vw,20rem)] shadow-2xl"><Button variant="ghost" size="icon" className="absolute right-2 top-6 z-10 text-sidebar-foreground hover:bg-sidebar-accent" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></Button><Sidebar onNavigate={() => setMobileOpen(false)} /></div></div>}
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border/80 bg-background/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-md">Skip to content</a>
           <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu /></Button><div><p className="text-xs font-medium text-muted-foreground">Live operations</p><h1 className="text-base font-semibold tracking-tight sm:text-lg">Good morning, {userProfile.displayName.split(" ")[0]}</h1></div></div>
           <div className="flex items-center gap-1 sm:gap-2"><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle color theme"><Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" /><Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" /></Button><Button variant="ghost" size="icon" aria-label="Notifications"><Bell className="size-4" /></Button><Button variant="outline" size="sm" className="ml-1 hidden gap-2 sm:flex" onClick={() => router.push("/incidents")}><ClipboardList className="size-4" />View incidents</Button><Button variant="ghost" size="icon" className="sm:hidden" onClick={handleSignOut} aria-label="Sign out"><LogOut className="size-4" /></Button></div>
         </header>
         <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
+        <main id="main-content" className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
       </div>
     </div>
   );

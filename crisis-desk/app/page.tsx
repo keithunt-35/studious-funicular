@@ -9,7 +9,7 @@
 import { redirect } from "next/navigation";
 
 export default function RootPage() {
-  // For now, always send visitors to the login page.
-  // Step 2 will add: if (user) redirect("/dashboard")
+  // The proxy checks the lightweight auth cookie and chooses the destination.
+  // Keep the server-rendered root deterministic; the proxy handles auth-aware routing.
   redirect("/login");
 }

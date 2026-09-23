@@ -1,4 +1,4 @@
-import { addDoc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 
 import type { EventDocument } from "@/types";
 import { eventDocument, eventsCollection } from "@/lib/firebase/paths";
@@ -10,6 +10,7 @@ function documentToEvent(id: string, data: Record<string, unknown>): EventDocume
     name: String(data.name ?? "Untitled event"),
     venue: typeof data.venue === "string" ? data.venue : undefined,
     timezone: String(data.timezone ?? "UTC"),
+    categories: Array.isArray(data.categories) ? data.categories.filter((value): value is string => typeof value === "string") : undefined,
     startsAt: nullableTimestampToDate(data.startsAt as EventDocument["startsAt"]),
     endsAt: nullableTimestampToDate(data.endsAt as EventDocument["endsAt"]),
     isActive: data.isActive !== false,
@@ -43,11 +44,21 @@ export async function createEvent(input: CreateEventInput): Promise<string> {
   return reference.id;
 }
 
-export async function updateEvent(eventId: string, updates: Partial<Pick<EventDocument, "name" | "venue" | "timezone" | "startsAt" | "endsAt" | "isActive">>): Promise<void> {
+export async function updateEvent(eventId: string, updates: Partial<Pick<EventDocument, "name" | "venue" | "timezone" | "categories" | "startsAt" | "endsAt" | "isActive">>): Promise<void> {
   await updateDoc(eventDocument(eventId), {
     ...updates,
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function saveEventDocument(eventId: string, input: CreateEventInput & { categories?: string[] }): Promise<void> {
+  await setDoc(eventDocument(eventId), {
+    ...input,
+    categories: input.categories ?? [],
+    isActive: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
 export async function deactivateEvent(eventId: string): Promise<void> {

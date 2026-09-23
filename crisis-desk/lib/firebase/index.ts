@@ -22,6 +22,7 @@ export {
   createUserProfile,
   updateUserProfile,
   ensureUserProfile,
+  subscribeToTeamMembers,
 } from "./user-helpers";
 
 // Firestore paths and typed domain helpers
@@ -40,12 +41,22 @@ export {
   createEvent,
   deactivateEvent,
   getEvent,
+  saveEventDocument,
   updateEvent,
 } from "./event-helpers";
+export { getNotificationPreferences, updateNotificationPreferences } from "./notification-helpers";
 export {
   createIncident,
   deleteIncident,
   getIncident,
+  subscribeToIncident,
   subscribeToIncidents,
   updateIncident,
 } from "./incident-helpers";
+export { uploadIncidentPhoto } from "./storage-helpers";
+export {
+  addIncidentActivity,
+  addIncidentComment,
+  subscribeToIncidentActivities,
+  subscribeToIncidentComments,
+} from "./incident-detail-helpers";

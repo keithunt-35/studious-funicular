@@ -38,7 +38,7 @@ export function EmptyState({
     >
       {/* Icon in a soft rounded container */}
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-        <Icon className="h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
+        <Icon aria-hidden="true" className="h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
       </div>
 
       {/* Title */}
