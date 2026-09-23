@@ -23,3 +23,29 @@ export {
   updateUserProfile,
   ensureUserProfile,
 } from "./user-helpers";
+
+// Firestore paths and typed domain helpers
+export {
+  eventDocument,
+  eventsCollection,
+  incidentActivitiesCollection,
+  incidentCommentsCollection,
+  incidentDocument,
+  incidentsCollection,
+  userDocument,
+  usersCollection,
+  userNotificationPreferencesDocument,
+} from "./paths";
+export {
+  createEvent,
+  deactivateEvent,
+  getEvent,
+  updateEvent,
+} from "./event-helpers";
+export {
+  createIncident,
+  deleteIncident,
+  getIncident,
+  subscribeToIncidents,
+  updateIncident,
+} from "./incident-helpers";

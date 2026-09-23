@@ -45,12 +45,32 @@ export interface AuthContextValue {
 }
 
 // ------------------------------------------------------------
-// Incident Types (skeleton — expanded fully in Step 4)
+// Firestore domain types
 // ------------------------------------------------------------
 
 export type IncidentSeverity = "critical" | "high" | "medium" | "low";
 
 export type IncidentStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export type IncidentActivityType =
+  | "created"
+  | "status_changed"
+  | "assigned"
+  | "commented"
+  | "resolved";
+
+export interface EventDocument {
+  id: string;
+  name: string;
+  venue?: string;
+  timezone: string;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface Incident {
   id: string;
@@ -59,11 +79,65 @@ export interface Incident {
   severity: IncidentSeverity;
   status: IncidentStatus;
   category: string;
-  location?: string;
-  reportedBy: string;         // user uid
-  assignedTo?: string | null; // user uid
+  location?: string | null;
+  reportedBy: string;
+  assignedTo?: string | null;
   eventId: string;
+  resolvedBy?: string | null;
+  resolutionNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  resolvedAt?: Date | null;
+}
+
+export interface IncidentActivity {
+  id: string;
+  incidentId: string;
+  eventId: string;
+  type: IncidentActivityType;
+  message: string;
+  actorId: string;
+  metadata?: Record<string, string | null>;
+  createdAt: Date;
+}
+
+export interface IncidentComment {
+  id: string;
+  incidentId: string;
+  eventId: string;
+  authorId: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NotificationPreferences {
+  email: boolean;
+  sms: boolean;
+  push: boolean;
+  criticalOnly: boolean;
+  updatedAt: Date;
+}
+
+export interface CreateIncidentInput {
+  title: string;
+  description: string;
+  severity: IncidentSeverity;
+  category: string;
+  location?: string | null;
+  eventId: string;
+  reportedBy: string;
+}
+
+export interface UpdateIncidentInput {
+  title?: string;
+  description?: string;
+  severity?: IncidentSeverity;
+  status?: IncidentStatus;
+  category?: string;
+  location?: string | null;
+  assignedTo?: string | null;
+  resolvedBy?: string | null;
+  resolutionNotes?: string | null;
   resolvedAt?: Date | null;
 }

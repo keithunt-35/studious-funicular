@@ -75,3 +75,13 @@ export const USER_ROLES = {
   dept_lead: "Department Lead",
   staff: "Staff",
 } as const;
+
+// Firestore collection names are centralized to prevent path typos.
+export const FIRESTORE_COLLECTIONS = {
+  users: "users",
+  events: "events",
+  incidents: "incidents",
+  activities: "activities",
+  comments: "comments",
+  notificationPreferences: "notificationPreferences",
+} as const;

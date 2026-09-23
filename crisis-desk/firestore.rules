@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isEventLead() {
+      return signedIn() && currentUser().role == 'event_lead';
+    }
+
+    function isTeamLead() {
+      return signedIn() && currentUser().role in ['event_lead', 'dept_lead'];
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isTeamLead();
+      allow create: if isSelf(uid) && request.resource.data.role == 'staff';
+      allow update: if isSelf(uid) && request.resource.data.role == resource.data.role
+        || isEventLead();
+      allow delete: if isEventLead();
+
+      match /notificationPreferences/{preferenceId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create: if isEventLead() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isEventLead();
+    }
+
+    match /incidents/{incidentId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.reportedBy == request.auth.uid;
+      allow update: if isTeamLead()
+        || (signedIn()
+          && resource.data.reportedBy == request.auth.uid
+          && request.resource.data.reportedBy == resource.data.reportedBy
+          && request.resource.data.eventId == resource.data.eventId);
+      allow delete: if isEventLead();
+
+      match /activities/{activityId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.actorId == request.auth.uid;
+        allow update, delete: if isEventLead();
+      }
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      }
+    }
+  }
+}
