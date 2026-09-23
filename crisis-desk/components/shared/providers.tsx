@@ -3,18 +3,18 @@
 // ============================================================
 // Providers — components/shared/providers.tsx
 //
-// Why a separate file?
-// Next.js App Router uses React Server Components by default.
-// The root layout.tsx is a Server Component, but TanStack Query
-// requires a client-side context provider.
+// All client-side context providers live here.
+// The root layout (a Server Component) renders this once,
+// wrapping the entire app.
 //
-// Solution: extract all client providers into this file and
-// mark it "use client". The layout stays a Server Component
-// and simply renders <Providers> as a child.
+// Provider order matters — outer providers are available to
+// inner ones. AuthProvider is inside QueryClientProvider so
+// auth queries can use the same QueryClient if needed.
 // ============================================================
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { AuthProvider } from "@/lib/firebase/auth-context";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -29,11 +29,10 @@ export function Providers({ children }: ProvidersProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Don't retry failed requests by default in this app —
             // Firebase errors are usually auth/permission issues,
-            // not transient network failures.
+            // not transient failures — limit retries.
             retry: 1,
-            // Keep data fresh for 60 seconds before refetching
+            // Data is considered fresh for 60 seconds
             staleTime: 60 * 1000,
           },
         },
@@ -42,7 +41,14 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      {/*
+        AuthProvider listens to Firebase onAuthStateChanged and
+        makes the current user available to all child components
+        via useAuth() / useCurrentUser().
+      */}
+      <AuthProvider>
+        {children}
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
