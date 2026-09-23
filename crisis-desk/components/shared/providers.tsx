@@ -3,16 +3,14 @@
 // ============================================================
 // Providers — components/shared/providers.tsx
 //
-// All client-side context providers live here.
-// The root layout (a Server Component) renders this once,
-// wrapping the entire app.
-//
-// Provider order matters — outer providers are available to
-// inner ones. AuthProvider is inside QueryClientProvider so
-// auth queries can use the same QueryClient if needed.
+// All client-side context providers, in order:
+//   1. ThemeProvider  — dark/light mode (next-themes)
+//   2. QueryClientProvider — TanStack Query data fetching
+//   3. AuthProvider   — Firebase auth state
 // ============================================================
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { AuthProvider } from "@/lib/firebase/auth-context";
 
@@ -21,18 +19,12 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // useState ensures each browser session gets its own QueryClient.
-  // If we created it outside the component, it would be shared
-  // across all server renders (bad for data isolation in SSR).
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Firebase errors are usually auth/permission issues,
-            // not transient failures — limit retries.
             retry: 1,
-            // Data is considered fresh for 60 seconds
             staleTime: 60 * 1000,
           },
         },
@@ -40,15 +32,22 @@ export function Providers({ children }: ProvidersProps) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/*
-        AuthProvider listens to Firebase onAuthStateChanged and
-        makes the current user available to all child components
-        via useAuth() / useCurrentUser().
-      */}
-      <AuthProvider>
-        {children}
-      </AuthProvider>
-    </QueryClientProvider>
+    // ThemeProvider must be outermost so all children can read the theme.
+    // attribute="class" → adds "dark" class to <html> for Tailwind dark mode.
+    // defaultTheme="system" → respects the user's OS preference on first visit.
+    // enableSystem → automatically follows OS dark/light preference.
+    // disableTransitionOnChange → prevents a flash when switching themes.
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
