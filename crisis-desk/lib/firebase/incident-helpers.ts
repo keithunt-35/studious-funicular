@@ -3,7 +3,6 @@ import {
   deleteDoc,
   getDoc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -14,12 +13,16 @@ import { incidentDocument, incidentsCollection } from "@/lib/firebase/paths";
 import { nullableTimestampToDate, timestampToDate } from "@/lib/firebase/firestore-converters";
 
 export function documentToIncident(id: string, data: Record<string, unknown>): Incident {
+  const severity = String(data.severity ?? "medium").toLowerCase() as Incident["severity"];
+  const status = String(data.status ?? "open").toLowerCase().replace(" ", "_") as Incident["status"];
+  const createdAt = (data.createdAt ?? data.timestamp) as Incident["createdAt"];
+
   return {
     id,
     title: String(data.title ?? "Untitled incident"),
     description: String(data.description ?? ""),
-    severity: (data.severity as Incident["severity"]) ?? "medium",
-    status: (data.status as Incident["status"]) ?? "open",
+    severity,
+    status,
     category: String(data.category ?? "Other"),
     location: typeof data.location === "string" ? data.location : null,
     reportedBy: String(data.reportedBy ?? ""),
@@ -27,9 +30,9 @@ export function documentToIncident(id: string, data: Record<string, unknown>): I
     eventId: String(data.eventId ?? ""),
     photoUrl: typeof data.photoUrl === "string" ? data.photoUrl : null,
     resolvedBy: typeof data.resolvedBy === "string" ? data.resolvedBy : null,
-    resolutionNotes: typeof data.resolutionNotes === "string" ? data.resolutionNotes : null,
-    createdAt: timestampToDate(data.createdAt as Incident["createdAt"]),
-    updatedAt: timestampToDate(data.updatedAt as Incident["updatedAt"]),
+    resolutionNotes: typeof data.resolutionNotes === "string" ? data.resolutionNotes : typeof data.resolutionNote === "string" ? data.resolutionNote : null,
+    createdAt: timestampToDate(createdAt),
+    updatedAt: timestampToDate((data.updatedAt ?? createdAt) as Incident["updatedAt"]),
     resolvedAt: nullableTimestampToDate(data.resolvedAt as Incident["resolvedAt"]),
   };
 }
@@ -38,12 +41,14 @@ export function subscribeToIncidents(
   onChange: (incidents: Incident[]) => void,
   onError: (error: Error) => void
 ): () => void {
-  const incidentsQuery = query(incidentsCollection(), orderBy("createdAt", "desc"));
+  const incidentsQuery = query(incidentsCollection());
 
   return onSnapshot(
     incidentsQuery,
     (snapshot) => {
-      onChange(snapshot.docs.map((document) => documentToIncident(document.id, document.data())));
+      onChange(snapshot.docs
+        .map((document) => documentToIncident(document.id, document.data()))
+        .sort((first, second) => second.createdAt.getTime() - first.createdAt.getTime()));
     },
     (error) => onError(error)
   );
