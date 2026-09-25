@@ -165,7 +165,9 @@ New accounts are created as `staff`. Promotion is performed by an event lead.
 
 Notification preferences already include SMS support and are stored in Firestore. Africa’s Talking integration should be implemented through Firebase Cloud Functions so API credentials remain server-side.
 
-The Cloud Functions work is intentionally not included in this web client handover. The future function should listen for relevant incident changes, check notification preferences, and send SMS through Africa’s Talking using server-side secrets.
+The server-side Africa’s Talking integration is being added in the `functions/` package so API credentials remain server-side. Incident notifications and the broader Lifeline workflows will be added in later steps.
+
+Step 1 of the Crisis Desk Lifeline now lives in the `functions/` directory. Install its dependencies with `npm install` from that directory, store `AT_USERNAME` and `AT_API_KEY` with `firebase functions:secrets:set`, then deploy the authenticated `sendTestSms` function. See `functions/README.md` for the sandbox checklist.
 
 ## Production Checklist
 
