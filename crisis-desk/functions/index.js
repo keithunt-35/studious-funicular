@@ -1,5 +1,5 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { defineString } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -7,10 +7,17 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import {
   africaTalkingApiKey,
   africaTalkingUsername,
+  airtimeRewardAmount,
+  airtimeRewardCurrency,
+  airtimeRewardsEnabled,
   buildVoiceInstructions,
+  sendAirtime,
   sendVoiceCall,
   sendSms,
+  ussdEnabled,
 } from "./africastalking.js";
+import { isCriticalResolution, parseRewardAmount } from "./airtime-reward.js";
+import { isFeatureEnabled, isInternationalPhoneNumber } from "./feature-flags.js";
 import { parseInboundSms } from "./sms-parser.js";
 import { getUssdResponse } from "./ussd-menu.js";
 import { buildCriticalIncidentMessage } from "./voice-message.js";
@@ -123,8 +130,14 @@ export const inboundSms = onRequest(async (request, response) => {
   const sender = typeof request.body?.from === "string" ? request.body.from.trim() : "";
   const text = typeof request.body?.text === "string" ? request.body.text.trim() : "";
 
-  if (!sender || !text) {
-    response.status(400).send("Missing from or text");
+  if (!isFeatureEnabled(smsEnabled.value())) {
+    console.warn("Inbound SMS is disabled by configuration");
+    response.status(200).send("SMS reporting is temporarily disabled");
+    return;
+  }
+
+  if (!isInternationalPhoneNumber(sender) || !text || text.length > 500) {
+    response.status(400).send("Invalid sender or message");
     return;
   }
 
@@ -176,7 +189,12 @@ export const ussd = onRequest(async (request, response) => {
   const phoneNumber = typeof request.body?.phoneNumber === "string" ? request.body.phoneNumber.trim() : "";
   const text = typeof request.body?.text === "string" ? request.body.text.trim() : "";
 
-  if (!sessionId || !phoneNumber) {
+  if (!isFeatureEnabled(ussdEnabled.value())) {
+    response.type("text/plain").status(200).send("END Crisis Desk USSD is temporarily unavailable.");
+    return;
+  }
+
+  if (!sessionId || sessionId.length > 128 || !isInternationalPhoneNumber(phoneNumber) || text.length > 500) {
     response.status(400).send("Missing sessionId or phoneNumber");
     return;
   }
@@ -242,6 +260,11 @@ export const callEventLeadsForCriticalIncident = onDocumentCreated(
     if (!incident || incident.severity !== "critical") return;
 
     const eventId = String(incident.eventId ?? defaultEventId.value());
+    if (!isFeatureEnabled(voiceEnabled.value())) {
+      await recordVoiceActivity(incidentId, eventId, "system:voice", "Voice call skipped because Voice is disabled.", { channel: "voice", status: "disabled" });
+      return;
+    }
+
     const message = buildCriticalIncidentMessage(incident);
     const leadSnapshot = await db.collection("users").where("role", "==", "event_lead").get();
     const leads = leadSnapshot.docs.filter((document) => {
@@ -289,6 +312,11 @@ export const callEventLeadsForCriticalIncident = onDocumentCreated(
 export const voiceInstructions = onRequest(
   { secrets: [africaTalkingUsername, africaTalkingApiKey] },
   async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).send("Method Not Allowed");
+      return;
+    }
+
     const clientRequestId = typeof request.body?.clientRequestId === "string" ? request.body.clientRequestId : "";
     let message = "Attention. Please check the Crisis Desk command center immediately.";
 
@@ -308,6 +336,96 @@ export const voiceInstructions = onRequest(
   }
 );
 
+async function recordAirtimeActivity(incidentId, eventId, message, metadata) {
+  try {
+    await db.collection("incidents").doc(incidentId).collection("activities").add({
+      incidentId,
+      eventId,
+      type: "commented",
+      message,
+      actorId: "system:airtime",
+      metadata,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Airtime activity could not be recorded", error);
+  }
+}
+
+async function claimAirtimeReward(rewardReference, data) {
+  return db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(rewardReference);
+    if (existing.exists) return false;
+
+    transaction.create(rewardReference, data);
+    return true;
+  });
+}
+
+/** Sends one configurable airtime reward after a Critical incident is resolved. */
+export const rewardCriticalIncidentResolver = onDocumentUpdated(
+  {
+    document: "incidents/{incidentId}",
+    secrets: [africaTalkingUsername, africaTalkingApiKey],
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    const incidentId = event.params.incidentId;
+
+    if (!before || !after || !isCriticalResolution(before, after)) return;
+
+    const eventId = String(after.eventId ?? defaultEventId.value());
+    if (airtimeRewardsEnabled.value().toLowerCase() !== "true") {
+      await recordAirtimeActivity(incidentId, eventId, "Airtime reward skipped because rewards are disabled.", { channel: "airtime", status: "disabled" });
+      return;
+    }
+
+    const rewardAmount = parseRewardAmount(airtimeRewardAmount.value());
+    const currencyCode = airtimeRewardCurrency.value().trim().toUpperCase();
+    const resolverId = typeof after.resolvedBy === "string" ? after.resolvedBy : "";
+
+    if (!resolverId || !rewardAmount || !/^[A-Z]{3}$/.test(currencyCode)) {
+      await recordAirtimeActivity(incidentId, eventId, "Airtime reward skipped because the resolver or reward configuration is missing.", { channel: "airtime", status: "skipped" });
+      return;
+    }
+
+    const resolverSnapshot = await db.collection("users").doc(resolverId).get();
+    const resolver = resolverSnapshot.data();
+    const phoneNumber = typeof resolver?.phone === "string" ? resolver.phone.trim() : "";
+
+    if (!phoneNumber) {
+      await recordAirtimeActivity(incidentId, eventId, "Airtime reward skipped because the resolver has no phone number.", { channel: "airtime", status: "skipped", resolverId });
+      return;
+    }
+
+    const rewardReference = db.collection("airtimeRewards").doc(incidentId);
+    const claimed = await claimAirtimeReward(rewardReference, {
+      incidentId,
+      eventId,
+      recipientUid: resolverId,
+      recipientPhone: phoneNumber,
+      amount: rewardAmount,
+      currencyCode,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    if (!claimed) return;
+
+    try {
+      const providerResponse = await sendAirtime({ phoneNumber, currencyCode, amount: rewardAmount });
+      await rewardReference.update({ status: "requested", providerResponse: String(providerResponse?.responses?.[0]?.status ?? "accepted"), updatedAt: FieldValue.serverTimestamp() });
+      await recordAirtimeActivity(incidentId, eventId, `Airtime reward requested for ${resolver?.displayName ?? resolverId}.`, { channel: "airtime", status: "requested", recipient: phoneNumber, amount: String(rewardAmount), currencyCode });
+    } catch (error) {
+      console.error("Africa's Talking airtime reward failed", { incidentId, recipient: phoneNumber, error });
+      await rewardReference.update({ status: "failed", error: error instanceof Error ? error.message : "Unknown airtime error", updatedAt: FieldValue.serverTimestamp() });
+      await recordAirtimeActivity(incidentId, eventId, `Airtime reward failed for ${resolver?.displayName ?? resolverId}.`, { channel: "airtime", status: "failed", recipient: phoneNumber, amount: String(rewardAmount), currencyCode });
+    }
+  }
+);
+
 /**
  * Sends one sandbox SMS so the integration can be verified before event use.
  * This function is intentionally authenticated because it sends a billable API request.
@@ -319,6 +437,10 @@ export const sendTestSms = onCall(
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign in before sending a test SMS.");
+    }
+
+    if (!isFeatureEnabled(smsEnabled.value())) {
+      throw new HttpsError("failed-precondition", "SMS is disabled by configuration.");
     }
 
     const phoneNumber = request.data?.phoneNumber;

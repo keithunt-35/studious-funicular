@@ -44,6 +44,8 @@ Use a phone number registered as a test recipient in the Africa's Talking sandbo
 
 `AT_SMS_SENDER_ID` is optional. Leave it empty unless the Africa's Talking dashboard gives the sandbox a sender ID to use.
 
+Runtime switches are available for event-day control. Set `AT_SMS_ENABLED`, `AT_USSD_ENABLED`, or `AT_VOICE_ENABLED` to `false` to stop that channel without removing the deployed function. `AT_AIRTIME_REWARDS_ENABLED` is also `false` by default and controls reward transfers.
+
 ## Inbound SMS webhook
 
 The deployed webhook is:
@@ -119,3 +121,29 @@ https://us-central1-<your-firebase-project-id>.cloudfunctions.net/voiceInstructi
 ```
 
 When a newly created incident has `severity: critical`, the trigger calls every active Event Lead with a phone number. The callback returns text-to-speech instructions containing the incident description. Each requested or failed call is recorded in the incident activity timeline.
+
+## Airtime rewards
+
+Rewards are disabled by default. Configure them before deployment:
+
+```bash
+firebase functions:params:set AT_AIRTIME_REWARDS_ENABLED
+firebase functions:params:set AT_AIRTIME_REWARD_AMOUNT
+firebase functions:params:set AT_AIRTIME_REWARD_CURRENCY
+```
+
+Example values are `true`, `50`, and `KES`. For Uganda, use `true`, `1000`, and `UGX`. Deploy the reward trigger with:
+
+```bash
+firebase deploy --only functions:rewardCriticalIncidentResolver
+```
+
+When a Critical incident changes to `resolved`, the function finds `resolvedBy`, reads that user's phone number, and sends one airtime reward through Africa's Talking. The reward is claimed by incident ID before the provider request, so retries cannot pay twice. Missing phone numbers, invalid configuration, disabled rewards, successful requests, and failures are all logged in the incident timeline.
+
+## Step 6 safety notes
+
+- Credentials are read from Firebase Secret Manager only; no API key or username is stored in source files.
+- Webhooks require POST requests, international phone numbers, bounded message/session input, and return safe generic errors.
+- Voice calls and airtime rewards use Firestore claim records to avoid duplicate provider actions when a Cloud Function is retried.
+- SMS confirmation failures do not undo a saved incident. Voice and airtime failures are logged and do not undo the incident status change.
+- Provider actions are logged under the related incident activity timeline with channel and status metadata.

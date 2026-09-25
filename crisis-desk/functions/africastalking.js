@@ -4,7 +4,13 @@ import { defineSecret, defineString } from "firebase-functions/params";
 // Secret values are read only when a function runs, never during deployment.
 const africaTalkingUsername = defineSecret("AT_USERNAME");
 const africaTalkingApiKey = defineSecret("AT_API_KEY");
+const smsEnabled = defineString("AT_SMS_ENABLED", { default: "true" });
+const ussdEnabled = defineString("AT_USSD_ENABLED", { default: "true" });
+const voiceEnabled = defineString("AT_VOICE_ENABLED", { default: "true" });
 const voiceCallerId = defineString("AT_VOICE_CALLER_ID", { default: "" });
+const airtimeRewardsEnabled = defineString("AT_AIRTIME_REWARDS_ENABLED", { default: "false" });
+const airtimeRewardAmount = defineString("AT_AIRTIME_REWARD_AMOUNT", { default: "50" });
+const airtimeRewardCurrency = defineString("AT_AIRTIME_REWARD_CURRENCY", { default: "KES" });
 
 function getAfricaTalkingClient() {
   const username = africaTalkingUsername.value();
@@ -45,6 +51,14 @@ async function sendVoiceCall({ to, clientRequestId }) {
   });
 }
 
+async function sendAirtime({ phoneNumber, currencyCode, amount }) {
+  const client = getAfricaTalkingClient();
+
+  return client.AIRTIME.send({
+    recipients: [{ phoneNumber, currencyCode, amount }],
+  });
+}
+
 function buildVoiceInstructions(message) {
   const client = getAfricaTalkingClient();
   const escapedMessage = message
@@ -62,7 +76,14 @@ function buildVoiceInstructions(message) {
 export {
   africaTalkingApiKey,
   africaTalkingUsername,
+  airtimeRewardAmount,
+  airtimeRewardCurrency,
+  airtimeRewardsEnabled,
   buildVoiceInstructions,
+  smsEnabled,
+  ussdEnabled,
+  voiceEnabled,
+  sendAirtime,
   sendVoiceCall,
   sendSms,
 };
