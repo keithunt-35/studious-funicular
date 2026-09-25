@@ -3,6 +3,8 @@
 These Firebase Cloud Functions contain the server-side Africa's Talking integration.
 The web app must never receive the Africa's Talking API key.
 
+For the complete Sandbox checklist, webhook table, event-day instructions, and final feature summary, see [LIFELINE_TESTING.md](./LIFELINE_TESTING.md).
+
 ## Step 1 setup
 
 1. Create an account at [Africa's Talking](https://africastalking.com/) and open the **Sandbox** environment.
@@ -23,7 +25,15 @@ The web app must never receive the Africa's Talking API key.
 
    Paste each value only when the Firebase CLI prompts for it. Do not put either value in source code or commit it to git.
 
-6. Deploy the test function:
+6. Configure the non-secret parameters in a project-specific Functions dotenv file. Replace `<project-id>` with the Firebase project ID:
+
+   ```bash
+   cp functions/.env.example functions/.env.<project-id>
+   ```
+
+   Edit `functions/.env.<project-id>` and set `DEFAULT_EVENT_ID`, `AT_VOICE_CALLER_ID`, and the channel flags. This file is ignored by git. The Firebase CLI also prompts for missing parameter values during deployment and stores them in this file.
+
+7. Deploy the test function:
 
    ```bash
    firebase deploy --only functions:sendTestSms
@@ -105,7 +115,7 @@ curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d
 Set the Africa's Talking virtual voice number used as the caller ID:
 
 ```bash
-firebase functions:params:set AT_VOICE_CALLER_ID
+# Edit functions/.env.<project-id> and set AT_VOICE_CALLER_ID first.
 ```
 
 Deploy the trigger and voice callback:
@@ -127,9 +137,7 @@ When a newly created incident has `severity: critical`, the trigger calls every 
 Rewards are disabled by default. Configure them before deployment:
 
 ```bash
-firebase functions:params:set AT_AIRTIME_REWARDS_ENABLED
-firebase functions:params:set AT_AIRTIME_REWARD_AMOUNT
-firebase functions:params:set AT_AIRTIME_REWARD_CURRENCY
+# Edit functions/.env.<project-id> and set the Airtime values first.
 ```
 
 Example values are `true`, `50`, and `KES`. For Uganda, use `true`, `1000`, and `UGX`. Deploy the reward trigger with:

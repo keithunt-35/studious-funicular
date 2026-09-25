@@ -121,7 +121,9 @@ async function getAssignedTasks(phoneNumber) {
 }
 
 /** Receives Africa's Talking inbound SMS callbacks and creates an incident. */
-export const inboundSms = onRequest(async (request, response) => {
+export const inboundSms = onRequest(
+  { secrets: [africaTalkingUsername, africaTalkingApiKey] },
+  async (request, response) => {
   if (request.method !== "POST") {
     response.status(405).send("Method Not Allowed");
     return;
@@ -176,7 +178,8 @@ export const inboundSms = onRequest(async (request, response) => {
     console.error("Inbound SMS incident creation failed", error);
     response.status(500).send("Unable to process SMS");
   }
-});
+  }
+);
 
 /** Receives Africa's Talking USSD callbacks for feature-phone workflows. */
 export const ussd = onRequest(async (request, response) => {
@@ -252,7 +255,10 @@ async function claimVoiceCall(voiceCallReference, data) {
 
 /** Calls every active Event Lead when a critical incident is created. */
 export const callEventLeadsForCriticalIncident = onDocumentCreated(
-  "incidents/{incidentId}",
+  {
+    document: "incidents/{incidentId}",
+    secrets: [africaTalkingUsername, africaTalkingApiKey],
+  },
   async (event) => {
     const incident = event.data?.data();
     const incidentId = event.params.incidentId;

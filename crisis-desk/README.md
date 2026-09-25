@@ -167,7 +167,7 @@ Notification preferences already include SMS support and are stored in Firestore
 
 The server-side Africa’s Talking integration is being added in the `functions/` package so API credentials remain server-side. Incident notifications and the broader Lifeline workflows will be added in later steps.
 
-Step 1 of the Crisis Desk Lifeline now lives in the `functions/` directory. Install its dependencies with `npm install` from that directory, store `AT_USERNAME` and `AT_API_KEY` with `firebase functions:secrets:set`, then deploy the authenticated `sendTestSms` function. See `functions/README.md` for the sandbox checklist.
+The Crisis Desk Lifeline lives in the `functions/` directory. Install its dependencies with `npm install` from that directory, store `AT_USERNAME` and `AT_API_KEY` with `firebase functions:secrets:set`, then use [functions/README.md](functions/README.md) and [functions/LIFELINE_TESTING.md](functions/LIFELINE_TESTING.md) for deployment, Sandbox verification, webhook configuration, and event-day operations.
 
 ## Production Checklist
 
