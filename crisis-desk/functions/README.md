@@ -43,3 +43,57 @@ Call `sendTestSms` from an authenticated Crisis Desk client with:
 Use a phone number registered as a test recipient in the Africa's Talking sandbox. The function rejects unauthenticated calls and does not expose the API key in its response.
 
 `AT_SMS_SENDER_ID` is optional. Leave it empty unless the Africa's Talking dashboard gives the sandbox a sender ID to use.
+
+## Inbound SMS webhook
+
+The deployed webhook is:
+
+```text
+https://us-central1-<your-firebase-project-id>.cloudfunctions.net/inboundSms
+```
+
+Configure this URL as the incoming SMS callback URL in the Africa's Talking Sandbox two-way SMS settings. Set `DEFAULT_EVENT_ID` to the Firestore event document that should receive SMS reports. For local emulator work, copy `.env.example` to `.env` and adjust the value.
+
+Africa's Talking sends form fields including `from` and `text`. A message such as:
+
+```text
+CRITICAL Power failure in Main Hall
+```
+
+creates an open Critical incident, uses `Main Hall` as the location, adds a timeline entry identifying the sender, and attempts a confirmation SMS. The incident is retained even when the confirmation SMS fails.
+
+For a local HTTP smoke test, send the same form shape to the emulator URL:
+
+```bash
+curl -X POST http://127.0.0.1:5001/<your-firebase-project-id>/us-central1/inboundSms \
+   -H 'Content-Type: application/x-www-form-urlencoded' \
+   --data-urlencode 'from=+254700000000' \
+   --data-urlencode 'text=CRITICAL Power failure in Main Hall'
+```
+
+## USSD webhook
+
+Deploy the USSD function with:
+
+```bash
+firebase deploy --only functions:ussd
+```
+
+Configure this callback URL in the Africa's Talking Sandbox USSD application:
+
+```text
+https://us-central1-<your-firebase-project-id>.cloudfunctions.net/ussd
+```
+
+The menu uses `CON` while collecting input and `END` when the session is complete. It supports reporting an emergency, viewing up to three open assigned tasks, and a short help response. A caller must have the same international phone number saved in their Crisis Desk profile before assigned tasks can be displayed.
+
+For a local emulator smoke test, send the cumulative USSD input values that Africa's Talking sends during one session:
+
+```bash
+USSD_URL="http://127.0.0.1:5001/<your-firebase-project-id>/us-central1/ussd"
+
+curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text='
+curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text=1'
+curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text=1*1'
+curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text=1*1*Power failure at Gate 2'
+```
