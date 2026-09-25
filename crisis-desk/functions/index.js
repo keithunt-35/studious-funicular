@@ -1,4 +1,5 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineString } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -6,10 +7,13 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import {
   africaTalkingApiKey,
   africaTalkingUsername,
+  buildVoiceInstructions,
+  sendVoiceCall,
   sendSms,
 } from "./africastalking.js";
 import { parseInboundSms } from "./sms-parser.js";
 import { getUssdResponse } from "./ussd-menu.js";
+import { buildCriticalIncidentMessage } from "./voice-message.js";
 
 initializeApp();
 const db = getFirestore();
@@ -201,6 +205,108 @@ export const ussd = onRequest(async (request, response) => {
     response.type("text/plain").status(200).send("END Crisis Desk is temporarily unavailable. Please try again.");
   }
 });
+
+async function recordVoiceActivity(incidentId, eventId, actorId, message, metadata) {
+  try {
+    await db.collection("incidents").doc(incidentId).collection("activities").add({
+      incidentId,
+      eventId,
+      type: "commented",
+      message,
+      actorId,
+      metadata,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Voice activity could not be recorded", error);
+  }
+}
+
+async function claimVoiceCall(voiceCallReference, data) {
+  return db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(voiceCallReference);
+    if (existing.exists) return false;
+
+    transaction.create(voiceCallReference, data);
+    return true;
+  });
+}
+
+/** Calls every active Event Lead when a critical incident is created. */
+export const callEventLeadsForCriticalIncident = onDocumentCreated(
+  "incidents/{incidentId}",
+  async (event) => {
+    const incident = event.data?.data();
+    const incidentId = event.params.incidentId;
+
+    if (!incident || incident.severity !== "critical") return;
+
+    const eventId = String(incident.eventId ?? defaultEventId.value());
+    const message = buildCriticalIncidentMessage(incident);
+    const leadSnapshot = await db.collection("users").where("role", "==", "event_lead").get();
+    const leads = leadSnapshot.docs.filter((document) => {
+      const lead = document.data();
+      return lead.isActive !== false && typeof lead.phone === "string" && lead.phone.trim();
+    });
+
+    if (leads.length === 0) {
+      await recordVoiceActivity(incidentId, eventId, "system:voice", "No active Event Lead phone number is configured for the critical incident.", { channel: "voice", status: "skipped" });
+      return;
+    }
+
+    await Promise.all(leads.map(async (leadDocument) => {
+      const lead = leadDocument.data();
+      const phoneNumber = lead.phone.trim();
+      const clientRequestId = `${incidentId}_${leadDocument.id}`;
+      const voiceCallReference = db.collection("voiceCalls").doc(clientRequestId);
+      const claimed = await claimVoiceCall(voiceCallReference, {
+        incidentId,
+        eventId,
+        recipientUid: leadDocument.id,
+        recipientPhone: phoneNumber,
+        message,
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      if (!claimed) return;
+
+      try {
+        const providerResponse = await sendVoiceCall({ to: phoneNumber, clientRequestId });
+        await voiceCallReference.update({ status: "requested", providerResponse: String(providerResponse?.entries?.[0]?.status ?? "accepted"), updatedAt: FieldValue.serverTimestamp() });
+        await recordVoiceActivity(incidentId, eventId, "system:voice", `Voice call requested for Event Lead ${lead.displayName ?? leadDocument.id}.`, { channel: "voice", recipient: phoneNumber, status: "requested" });
+      } catch (error) {
+        console.error("Africa's Talking voice call failed", { incidentId, recipient: phoneNumber, error });
+        await voiceCallReference.update({ status: "failed", error: error instanceof Error ? error.message : "Unknown voice error", updatedAt: FieldValue.serverTimestamp() });
+        await recordVoiceActivity(incidentId, eventId, "system:voice", `Voice call failed for Event Lead ${lead.displayName ?? leadDocument.id}.`, { channel: "voice", recipient: phoneNumber, status: "failed" });
+      }
+    }));
+  }
+);
+
+/** Returns the text-to-speech instructions for an outbound Africa's Talking call. */
+export const voiceInstructions = onRequest(
+  { secrets: [africaTalkingUsername, africaTalkingApiKey] },
+  async (request, response) => {
+    const clientRequestId = typeof request.body?.clientRequestId === "string" ? request.body.clientRequestId : "";
+    let message = "Attention. Please check the Crisis Desk command center immediately.";
+
+    if (clientRequestId) {
+      const voiceCall = await db.collection("voiceCalls").doc(clientRequestId).get();
+      if (voiceCall.exists && typeof voiceCall.data()?.message === "string") {
+        message = voiceCall.data().message;
+      }
+    }
+
+    try {
+      response.type("application/xml").status(200).send(buildVoiceInstructions(message));
+    } catch (error) {
+      console.error("Voice instructions could not be built", error);
+      response.type("application/xml").status(200).send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Reject/></Response>");
+    }
+  }
+);
 
 /**
  * Sends one sandbox SMS so the integration can be verified before event use.

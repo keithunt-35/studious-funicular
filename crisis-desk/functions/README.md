@@ -97,3 +97,25 @@ curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d
 curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text=1*1'
 curl -X POST "$USSD_URL" -d 'sessionId=test-1' -d 'phoneNumber=+254700000000' -d 'text=1*1*Power failure at Gate 2'
 ```
+
+## Voice API
+
+Set the Africa's Talking virtual voice number used as the caller ID:
+
+```bash
+firebase functions:params:set AT_VOICE_CALLER_ID
+```
+
+Deploy the trigger and voice callback:
+
+```bash
+firebase deploy --only functions:callEventLeadsForCriticalIncident,functions:voiceInstructions
+```
+
+Configure the Africa's Talking Voice callback URL as:
+
+```text
+https://us-central1-<your-firebase-project-id>.cloudfunctions.net/voiceInstructions
+```
+
+When a newly created incident has `severity: critical`, the trigger calls every active Event Lead with a phone number. The callback returns text-to-speech instructions containing the incident description. Each requested or failed call is recorded in the incident activity timeline.
