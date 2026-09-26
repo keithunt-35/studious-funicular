@@ -54,6 +54,11 @@ const registerSchema = z
       .min(1, "Email is required")
       .email("Please enter a valid email address"),
 
+    phone: z
+      .string()
+      .trim()
+      .regex(/^\+[1-9]\d{7,14}$/, "Use international format, e.g. +256752221459"),
+
     password: z
       .string()
       .min(1, "Password is required")
@@ -117,6 +122,7 @@ export function RegisterForm() {
     defaultValues: {
       displayName: "",
       email: "",
+      phone: "",
       password: "",
       confirmPassword: "",
     },
@@ -151,6 +157,7 @@ export function RegisterForm() {
         uid: firebaseUser.uid,
         email: values.email,
         displayName: values.displayName,
+        phone: values.phone,
         photoURL: null,
         role: "staff", // Default role — can be changed by event_lead later
       });
@@ -225,6 +232,14 @@ export function RegisterForm() {
         {errors.email && (
           <p className="text-xs text-red-600">{errors.email.message}</p>
         )}
+      </div>
+
+      {/* ── Password ── */}
+      {/* ── Phone contact ── */}
+      <div className="space-y-1.5">
+        <Label htmlFor="phone" className="text-sm font-medium">Phone contact</Label>
+        <Input id="phone" type="tel" placeholder="+256752221459" autoComplete="tel" disabled={isSubmitting} className={cn("h-10", errors.phone && "border-red-400 focus-visible:ring-red-400")} {...register("phone")} />
+        {errors.phone && <p className="text-xs text-red-600">{errors.phone.message}</p>}
       </div>
 
       {/* ── Password ── */}

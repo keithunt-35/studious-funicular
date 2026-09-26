@@ -95,6 +95,7 @@ export interface CreateUserProfileData {
   uid: string;
   email: string;
   displayName: string;
+  phone?: string;
   photoURL?: string | null;
   role?: UserRole;
 }
@@ -108,12 +109,12 @@ export async function createUserProfile(
   const profileData = {
     email: data.email,
     displayName: data.displayName,
+    phone: data.phone ?? null,
     photoURL: data.photoURL ?? null,
     // New users default to "staff" role.
     // An event_lead can promote them later (Step 8/9).
     role: data.role ?? "staff",
     department: null,
-    phone: null,
     isActive: true,
     // serverTimestamp() stores the server's time, not the client's.
     // This prevents clock skew issues across different devices.
@@ -130,6 +131,7 @@ export async function createUserProfile(
     displayName: data.displayName,
     photoURL: data.photoURL ?? null,
     role: data.role ?? "staff",
+    phone: data.phone,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
