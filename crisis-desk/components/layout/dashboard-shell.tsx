@@ -145,7 +145,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
           <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu /></Button><div><p className="text-xs font-medium text-muted-foreground">Live operations</p><h1 className="text-base font-semibold tracking-tight sm:text-lg">Good morning, {userProfile.displayName.split(" ")[0]}</h1></div></div>
           <div className="flex items-center gap-1 sm:gap-2"><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle color theme"><Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" /><Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" /></Button><Button variant="ghost" size="icon" aria-label="Notifications"><Bell className="size-4" /></Button><Button variant="outline" size="sm" className="ml-1 hidden gap-2 sm:flex" onClick={() => router.push("/incidents")}><ClipboardList className="size-4" />View incidents</Button><Button variant="ghost" size="icon" className="sm:hidden" onClick={handleSignOut} aria-label="Sign out"><LogOut className="size-4" /></Button></div>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
         <main id="main-content" className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
       </div>
     </div>
