@@ -67,7 +67,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   const [assignee, setAssignee] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
-  const isLead = userProfile?.role !== "staff";
+  const canAssign = userProfile?.role !== "staff";
 
   useEffect(() => {
     const unsubscribeIncident = subscribeToIncident(incidentId, (nextIncident) => {
@@ -89,9 +89,9 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   }, [incidentId]);
 
   useEffect(() => {
-    if (!isLead) return undefined;
+    if (!canAssign) return undefined;
     return subscribeToTeamMembers(setTeamMembers, () => undefined);
-  }, [isLead, userProfile]);
+  }, [canAssign, userProfile]);
 
   const recordActivity = async (type: IncidentActivity["type"], message: string, metadata?: IncidentActivity["metadata"]) => {
     if (!userProfile || !incident) return;
@@ -115,7 +115,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
 
   const saveAssignee = async () => {
     const selectedAssignee = assignee === "unassigned" ? "" : assignee;
-    if (!incident || !userProfile || selectedAssignee === (incident.assignedTo ?? "")) return;
+    if (!canAssign || !incident || !userProfile || selectedAssignee === (incident.assignedTo ?? "")) return;
     setBusy(true);
     try {
       await updateIncident(incident.id, { assignedTo: selectedAssignee || null });
@@ -148,7 +148,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
   if (error || !incident) return <EmptyState icon={FileText} title="Incident unavailable" description={error ?? "This incident may have been removed."} action={<Link href="/incidents" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium transition-colors hover:bg-muted"><ArrowLeft className="size-4" />Back to incidents</Link>} className="rounded-xl border border-border/80 bg-background py-24" />;
 
   const severity = SEVERITY_CONFIG[incident.severity];
-  const selectableMembers = isLead ? teamMembers : userProfile ? [userProfile] : [];
+  const selectableMembers = canAssign ? teamMembers : [];
 
   return (
     <div className="space-y-6">
@@ -163,7 +163,7 @@ export function IncidentDetail({ incidentId }: IncidentDetailProps) {
         </div>
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_18rem]">
           <div className="space-y-5"><div><h2 className="mb-2 text-sm font-semibold">What happened</h2><p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{incident.description}</p></div>{incident.photoUrl && <a href={incident.photoUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-border"><Image src={incident.photoUrl} alt="Incident attachment" width={1200} height={640} unoptimized className="max-h-80 w-full object-cover" /></a>}<div className="flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><MapPin className="size-4" />{incident.location || "Location not specified"}</span><span className="flex items-center gap-1.5"><Clock3 className="size-4" />Updated {formatDistanceToNow(incident.updatedAt, { addSuffix: true })}</span></div></div>
-          <aside className="space-y-4 rounded-lg bg-muted/40 p-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assignment</p><div className="flex gap-2"><Select value={assignee} onValueChange={(value) => setAssignee(value ?? "unassigned")} disabled={busy}><SelectTrigger className="h-9 min-w-0 flex-1"><SelectValue placeholder="Choose a responder" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{selectableMembers.map((member) => <SelectItem key={member.uid} value={member.uid}>{member.displayName} · {member.department ?? USER_ROLES[member.role]}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={saveAssignee} disabled={busy || (assignee === "unassigned" ? "" : assignee) === (incident.assignedTo ?? "")} aria-label="Save assignment">Save</Button></div><p className="mt-2 text-xs text-muted-foreground">Assignment updates appear in the activity timeline.</p></div><div className="border-t border-border/70 pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resolution notes</p><textarea value={resolutionNotes} onChange={(event) => setResolutionNotes(event.target.value)} rows={4} placeholder="Add notes before resolving..." disabled={busy || incident.status === "resolved"} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" /><p className="mt-2 text-xs text-muted-foreground">Choose Resolved above to close the response.</p></div></aside>
+          <aside className="space-y-4 rounded-lg bg-muted/40 p-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assignment</p><div className="flex gap-2"><Select value={assignee} onValueChange={(value) => setAssignee(value ?? "unassigned")} disabled={!canAssign || busy}><SelectTrigger className="h-9 min-w-0 flex-1"><SelectValue placeholder={canAssign ? "Choose a responder" : "Assignment managed by leads"} /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{selectableMembers.map((member) => <SelectItem key={member.uid} value={member.uid}>{member.displayName} · {member.department ?? USER_ROLES[member.role]}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={saveAssignee} disabled={!canAssign || busy || (assignee === "unassigned" ? "" : assignee) === (incident.assignedTo ?? "")} aria-label="Save assignment">Save</Button></div><p className="mt-2 text-xs text-muted-foreground">{canAssign ? "Choose an active team member. Assignment updates appear in the activity timeline." : "Only event and department leads can assign responders."}</p></div><div className="border-t border-border/70 pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resolution notes</p><textarea value={resolutionNotes} onChange={(event) => setResolutionNotes(event.target.value)} rows={4} placeholder="Add notes before resolving..." disabled={busy || incident.status === "resolved"} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" /><p className="mt-2 text-xs text-muted-foreground">Choose Resolved above to close the response.</p></div></aside>
         </div>
       </section>
 

@@ -20,6 +20,11 @@ test("collects severity and description before creating a report", () => {
     severity: "critical",
     description: "Power failure at Gate 2",
   });
+
+  assert.equal(
+    getUssdResponse("1*2*Generator failed at Gate 2*backup unavailable").description,
+    "Generator failed at Gate 2*backup unavailable",
+  );
 });
 
 test("routes assigned tasks and help to terminal responses", () => {

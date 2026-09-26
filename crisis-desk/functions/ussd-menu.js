@@ -16,12 +16,12 @@ function getUssdResponse(rawText) {
   }
 
   if (/^1\*[1-4]\*.+/.test(text)) {
-    const [, severityChoice, description] = text.split("*");
+    const [, severityChoice, ...descriptionParts] = text.split("*");
     const severities = ["critical", "high", "medium", "low"];
     return {
       action: "create_incident",
       severity: severities[Number(severityChoice) - 1],
-      description: description.trim().slice(0, 500),
+      description: descriptionParts.join("*").trim().slice(0, 500),
     };
   }
 

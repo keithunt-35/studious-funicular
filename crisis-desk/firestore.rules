@@ -22,6 +22,11 @@ service cloud.firestore {
       return signedIn() && currentUser().role in ['event_lead', 'dept_lead'];
     }
 
+    function isActiveUser(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.isActive == true;
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid) || isTeamLead();
       allow create: if isSelf(uid) && request.resource.data.role == 'staff';
@@ -43,11 +48,13 @@ service cloud.firestore {
     match /incidents/{incidentId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.reportedBy == request.auth.uid;
-      allow update: if isTeamLead()
+        allow update: if (isTeamLead()
+          && (request.resource.data.assignedTo == null || isActiveUser(request.resource.data.assignedTo)))
         || (signedIn()
           && resource.data.reportedBy == request.auth.uid
           && request.resource.data.reportedBy == resource.data.reportedBy
-          && request.resource.data.eventId == resource.data.eventId);
+          && request.resource.data.eventId == resource.data.eventId
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedTo']));
       allow delete: if isEventLead();
 
       match /activities/{activityId} {
