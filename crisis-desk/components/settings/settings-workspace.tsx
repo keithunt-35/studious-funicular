@@ -46,11 +46,13 @@ export function SettingsWorkspace() {
   const [eventName, setEventName] = useState("");
   const [venue, setVenue] = useState("");
   const [timezone, setTimezone] = useState("UTC");
+  const [phone, setPhone] = useState("");
   const [categories, setCategories] = useState<string[]>(fallbackCategories);
   const [newCategory, setNewCategory] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingEvent, setSavingEvent] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export function SettingsWorkspace() {
         if (!active) return;
         setEvent(loadedEvent);
         setPreferences(loadedPreferences);
+        setPhone(userProfile.phone ?? "");
         if (loadedEvent) {
           setEventName(loadedEvent.name);
           setVenue(loadedEvent.venue ?? "");
@@ -117,6 +120,22 @@ export function SettingsWorkspace() {
     }
   };
 
+  const saveProfile = async () => {
+    if (!/^\+[1-9]\d{7,14}$/.test(phone.trim())) {
+      toast.error("Use international phone format, e.g. +256752221459");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateUserProfile(userProfile.uid, { phone: phone.trim() });
+      toast.success("Phone contact saved");
+    } catch {
+      toast.error("Could not save your phone contact.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const addCategory = () => {
     const value = newCategory.trim();
     if (!value || categories.some((category) => category.toLowerCase() === value.toLowerCase())) return;
@@ -137,6 +156,8 @@ export function SettingsWorkspace() {
     <div className="space-y-8">
       <section><p className="mb-2 text-sm font-medium text-red-700 dark:text-red-400">Workspace controls</p><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Settings</h1><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">Keep your event details, alerts, categories, and access roles ready for the team.</p></section>
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{error}</div>}
+
+      <section className="rounded-xl border border-border/80 bg-background shadow-sm"><div className="border-b border-border/70 p-5 sm:p-6"><div className="flex items-center gap-3"><div className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><ShieldCheck className="size-5" /></div><div><h2 className="font-semibold">My profile</h2><p className="mt-1 text-xs text-muted-foreground">Your contact used for Crisis Desk SMS alerts.</p></div></div></div><div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><div className="space-y-1.5"><Label>Full name</Label><Input value={userProfile.displayName} disabled /></div><div className="space-y-1.5"><Label>Email address</Label><Input value={userProfile.email} disabled /></div><div className="space-y-1.5"><Label htmlFor="profile-phone">Phone contact</Label><Input id="profile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+256752221459" /></div><div className="flex items-end"><Button onClick={saveProfile} disabled={savingProfile || !phone.trim()} className="gap-2 bg-red-700 text-white hover:bg-red-800"><Save className="size-4" />{savingProfile ? "Saving..." : "Save contact"}</Button></div></div></section>
 
       <section className="rounded-xl border border-border/80 bg-background shadow-sm"><div className="border-b border-border/70 p-5 sm:p-6"><div className="flex items-center gap-3"><div className="flex size-9 items-center justify-center rounded-lg bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"><Settings2 className="size-5" /></div><div><h2 className="font-semibold">Event configuration</h2><p className="mt-1 text-xs text-muted-foreground">The shared context for your command center.</p></div></div></div><div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><div className="space-y-1.5"><Label htmlFor="event-name">Event name</Label><Input id="event-name" value={eventName} onChange={(event) => setEventName(event.target.value)} placeholder="e.g. Africa Tech Summit" disabled={!isEventLead} /></div><div className="space-y-1.5"><Label htmlFor="event-venue">Venue</Label><Input id="event-venue" value={venue} onChange={(event) => setVenue(event.target.value)} placeholder="e.g. Cape Town Convention Centre" disabled={!isEventLead} /></div><div className="space-y-1.5"><Label>Timezone</Label><Select value={timezone} onValueChange={(value) => setTimezone(value ?? "UTC")} disabled={!isEventLead}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="UTC">UTC</SelectItem><SelectItem value="Africa/Nairobi">Africa/Nairobi</SelectItem><SelectItem value="Africa/Johannesburg">Africa/Johannesburg</SelectItem><SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem><SelectItem value="Africa/Accra">Africa/Accra</SelectItem></SelectContent></Select></div><div className="flex items-end"><Button onClick={saveEventSettings} disabled={!isEventLead || savingEvent || !eventName.trim()} className="gap-2 bg-red-700 text-white hover:bg-red-800"><Save className="size-4" />{savingEvent ? "Saving..." : "Save event"}</Button></div></div>{!isEventLead && <p className="border-t border-border/70 px-5 py-3 text-xs text-muted-foreground sm:px-6">Only event leads can change shared event settings.</p>}</section>
 

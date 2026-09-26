@@ -109,7 +109,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <ChevronDown className="size-4 text-sidebar-foreground/45" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="w-56">
-            <DropdownMenuLabel className="font-normal"><p className="font-medium">{userProfile?.displayName}</p><p className="truncate text-xs text-muted-foreground">{userProfile?.email}</p></DropdownMenuLabel>
+            <DropdownMenuLabel className="font-normal"><p className="font-medium">{userProfile?.displayName}</p><p className="truncate text-xs text-muted-foreground">{userProfile?.email}</p><p className="text-xs text-muted-foreground">{userProfile?.phone ?? "No phone contact"}</p></DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/settings")}><Settings />Account settings</DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut} variant="destructive"><LogOut />Sign out</DropdownMenuItem>
