@@ -28,7 +28,7 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isSelf(uid) || isTeamLead();
+      allow read: if signedIn();
       allow create: if isSelf(uid) && request.resource.data.role == 'staff';
       allow update: if isSelf(uid) && request.resource.data.role == resource.data.role
         || isEventLead();
@@ -48,8 +48,10 @@ service cloud.firestore {
     match /incidents/{incidentId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.reportedBy == request.auth.uid;
-        allow update: if (isTeamLead()
+      allow update: if (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedTo'])
           && (request.resource.data.assignedTo == null || isActiveUser(request.resource.data.assignedTo)))
+        || isTeamLead()
         || (signedIn()
           && resource.data.reportedBy == request.auth.uid
           && request.resource.data.reportedBy == resource.data.reportedBy

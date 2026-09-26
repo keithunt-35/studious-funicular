@@ -132,6 +132,12 @@ export const inboundSms = onRequest(
   const sender = typeof request.body?.from === "string" ? request.body.from.trim() : "";
   const text = typeof request.body?.text === "string" ? request.body.text.trim() : "";
 
+  console.info("Africa's Talking inbound SMS received", {
+    channel: "sms",
+    sender: sender.length > 4 ? `***${sender.slice(-4)}` : "***",
+    messageLength: text.length,
+  });
+
   if (!isFeatureEnabled(smsEnabled.value())) {
     console.warn("Inbound SMS is disabled by configuration");
     response.status(200).send("SMS reporting is temporarily disabled");
@@ -153,6 +159,7 @@ export const inboundSms = onRequest(
         to: sender,
         message: `Crisis Desk received your ${parsed.severity} report${parsed.location ? ` for ${parsed.location}` : ""}. Incident ${id} is now open.`,
       });
+      console.info("Africa's Talking SMS confirmation accepted", { channel: "sms", incidentId: id });
     } catch (error) {
       // The incident is already saved, so a provider outage cannot lose the report.
       console.error("Africa's Talking SMS confirmation failed", error);
@@ -204,6 +211,12 @@ export const ussd = onRequest(async (request, response) => {
 
   try {
     const flow = getUssdResponse(text);
+    console.info("Africa's Talking USSD menu step", {
+      channel: "ussd",
+      sessionId,
+      action: flow.action,
+      step: text ? text.split("*").length : 0,
+    });
 
     if (flow.action === "tasks") {
       response.type("text/plain").status(200).send(await getAssignedTasks(phoneNumber));

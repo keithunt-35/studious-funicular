@@ -12,6 +12,11 @@ const airtimeRewardsEnabled = defineString("AT_AIRTIME_REWARDS_ENABLED", { defau
 const airtimeRewardAmount = defineString("AT_AIRTIME_REWARD_AMOUNT", { default: "50" });
 const airtimeRewardCurrency = defineString("AT_AIRTIME_REWARD_CURRENCY", { default: "KES" });
 
+function maskPhoneNumber(phoneNumber) {
+  const value = String(phoneNumber ?? "");
+  return value.length > 4 ? `***${value.slice(-4)}` : "***";
+}
+
 function getAfricaTalkingClient() {
   const username = africaTalkingUsername.value();
   const apiKey = africaTalkingApiKey.value();
@@ -29,6 +34,12 @@ async function sendSms({ to, message }) {
   const client = getAfricaTalkingClient();
   const senderId = process.env.AT_SMS_SENDER_ID;
 
+  console.info("Africa's Talking SMS request", {
+    channel: "sms",
+    recipient: maskPhoneNumber(to),
+    messageLength: String(message).length,
+  });
+
   return client.SMS.send({
     to,
     message,
@@ -44,6 +55,12 @@ async function sendVoiceCall({ to, clientRequestId }) {
   }
 
   const client = getAfricaTalkingClient();
+  console.info("Africa's Talking voice request", {
+    channel: "voice",
+    recipient: maskPhoneNumber(to),
+    clientRequestId,
+  });
+
   return client.VOICE.call({
     callFrom: callerId,
     callTo: to,
@@ -53,6 +70,13 @@ async function sendVoiceCall({ to, clientRequestId }) {
 
 async function sendAirtime({ phoneNumber, currencyCode, amount }) {
   const client = getAfricaTalkingClient();
+
+  console.info("Africa's Talking airtime request", {
+    channel: "airtime",
+    recipient: maskPhoneNumber(phoneNumber),
+    amount,
+    currencyCode,
+  });
 
   return client.AIRTIME.send({
     recipients: [{ phoneNumber, currencyCode, amount }],

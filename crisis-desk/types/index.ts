@@ -27,6 +27,8 @@ export interface UserProfile {
   createdAt: Date;
   updatedAt: Date;
   isActive: boolean;
+  isOnline?: boolean;
+  lastSeenAt?: Date | null;
 }
 
 /**

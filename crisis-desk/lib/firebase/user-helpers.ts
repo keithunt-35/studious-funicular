@@ -55,6 +55,8 @@ function docToUserProfile(uid: string, data: Record<string, any>): UserProfile {
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     isActive: data.isActive ?? true,
+    isOnline: data.isOnline === true,
+    lastSeenAt: data.lastSeenAt ? toDate(data.lastSeenAt) : null,
   };
 }
 

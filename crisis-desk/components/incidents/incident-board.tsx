@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 
 import { INCIDENT_CATEGORIES, SEVERITY_CONFIG, STATUS_CONFIG } from "@/constants";
-import { subscribeToIncidents } from "@/lib/firebase";
-import type { Incident, IncidentSeverity, IncidentStatus } from "@/types";
+import { addIncidentActivity, subscribeToIncidents, subscribeToTeamMembers, updateIncident } from "@/lib/firebase";
+import { useAuth } from "@/lib/firebase/auth-context";
+import type { Incident, IncidentSeverity, IncidentStatus, UserProfile } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,30 @@ function StatusBadge({ status }: { status: IncidentStatus }) {
   return <Badge variant="outline" className={config.badgeClass}>{config.label}</Badge>;
 }
 
-function IncidentRow({ incident }: { incident: Incident }) {
+function IncidentRow({ incident, canAssign, teamMembers, actor }: { incident: Incident; canAssign: boolean; teamMembers: UserProfile[]; actor: UserProfile | null }) {
+  const [selectedAssignee, setSelectedAssignee] = useState(incident.assignedTo ?? "unassigned");
+  const [saving, setSaving] = useState(false);
+
+  const saveAssignment = async () => {
+    if (!canAssign || !actor) return;
+    const assignedTo = selectedAssignee === "unassigned" ? null : selectedAssignee;
+    if (assignedTo === (incident.assignedTo ?? null)) return;
+    setSaving(true);
+    try {
+      await updateIncident(incident.id, { assignedTo });
+      await addIncidentActivity({
+        incidentId: incident.id,
+        eventId: incident.eventId,
+        type: "assigned",
+        message: assignedTo ? "Incident assignment updated." : "Incident assignment cleared.",
+        actorId: actor.uid,
+        metadata: { assignedTo },
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <tr className="border-b border-border/60 last:border-0 hover:bg-muted/25">
       <td className="px-5 py-4 align-top">
@@ -71,6 +95,9 @@ function IncidentRow({ incident }: { incident: Incident }) {
       <td className="px-4 py-4 align-top text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5"><MapPin className="size-3.5" />{incident.location || "Not specified"}</span>
       </td>
+      <td className="px-4 py-4 align-top">
+        {canAssign ? <div className="flex min-w-52 gap-2"><Select value={selectedAssignee} onValueChange={(value) => setSelectedAssignee(value ?? "unassigned")} disabled={saving}><SelectTrigger className="h-8 min-w-0 flex-1"><SelectValue placeholder="Assign member" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{teamMembers.map((member) => <SelectItem key={member.uid} value={member.uid}>{member.displayName}</SelectItem>)}</SelectContent></Select><Button size="sm" variant="outline" onClick={() => void saveAssignment()} disabled={saving || selectedAssignee === (incident.assignedTo ?? "unassigned")}>Assign</Button></div> : <span className="text-xs text-muted-foreground">{incident.assignedTo ? "Assigned" : "Unassigned"}</span>}
+      </td>
       <td className="whitespace-nowrap px-5 py-4 align-top text-xs text-muted-foreground">
         {formatDistanceToNow(incident.createdAt, { addSuffix: true })}
       </td>
@@ -79,6 +106,7 @@ function IncidentRow({ incident }: { incident: Incident }) {
 }
 
 export function IncidentBoard() {
+  const { userProfile } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +116,14 @@ export function IncidentBoard() {
   const [category, setCategory] = useState<FilterValue>("all");
   const [assignee, setAssignee] = useState<FilterValue>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+  const canAssign = Boolean(userProfile);
+  const onlineTeamMembers = teamMembers.filter((member) => member.isOnline);
+
+  useEffect(() => {
+    if (!canAssign) return undefined;
+    return subscribeToTeamMembers(setTeamMembers, () => undefined);
+  }, [canAssign]);
 
   useEffect(() => {
     return subscribeToIncidents(
@@ -152,9 +188,9 @@ export function IncidentBoard() {
         </div>
       </section>
 
-      {error ? <section className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950/30"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 size-5 shrink-0 text-red-700 dark:text-red-300" /><div><h3 className="font-semibold text-red-900 dark:text-red-200">Incident board unavailable</h3><p className="mt-1 text-sm text-red-800/80 dark:text-red-200/80">{error}</p><Button variant="outline" size="sm" className="mt-4 border-red-300 bg-transparent text-red-800 hover:bg-red-100 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-950" onClick={() => window.location.reload()}><RefreshCw className="size-3.5" />Try again</Button></div></div></section> : loading ? <section className="flex min-h-72 items-center justify-center rounded-xl border border-border/80 bg-background shadow-sm"><div className="flex flex-col items-center gap-3"><LoadingSpinner /><p className="text-sm text-muted-foreground">Connecting to the live incident board...</p></div></section> : visibleIncidents.length === 0 ? <section className="rounded-xl border border-border/80 bg-background shadow-sm"><EmptyState icon={search || severity !== "all" || status !== "all" || category !== "all" || assignee !== "all" ? Search : CheckCircle2} title={incidents.length === 0 ? "No incidents reported" : "No incidents match these filters"} description={incidents.length === 0 ? "When your team reports an issue, it will appear here for everyone to coordinate." : "Try adjusting your search or filters to see more incidents."} action={incidents.length > 0 ? <Button variant="outline" size="sm" onClick={clearFilters}>Clear filters</Button> : undefined} className="py-24" /></section> : <section className="overflow-hidden rounded-xl border border-border/80 bg-background shadow-sm"><div className="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6"><div><h3 className="font-semibold">All incidents</h3><p className="mt-1 text-xs text-muted-foreground">Updated automatically as your team responds.</p></div><span className="text-xs text-muted-foreground">{visibleIncidents.length} shown</span></div><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead className="bg-muted/35 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><tr><th className="px-5 py-3">Incident</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Location</th><th className="px-5 py-3">Reported</th></tr></thead><tbody>{visibleIncidents.map((incident) => <IncidentRow key={incident.id} incident={incident} />)}</tbody></table></div></section>}
+      {error ? <section className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950/30"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 size-5 shrink-0 text-red-700 dark:text-red-300" /><div><h3 className="font-semibold text-red-900 dark:text-red-200">Incident board unavailable</h3><p className="mt-1 text-sm text-red-800/80 dark:text-red-200/80">{error}</p><Button variant="outline" size="sm" className="mt-4 border-red-300 bg-transparent text-red-800 hover:bg-red-100 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-950" onClick={() => window.location.reload()}><RefreshCw className="size-3.5" />Try again</Button></div></div></section> : loading ? <section className="flex min-h-72 items-center justify-center rounded-xl border border-border/80 bg-background shadow-sm"><div className="flex flex-col items-center gap-3"><LoadingSpinner /><p className="text-sm text-muted-foreground">Connecting to the live incident board...</p></div></section> : visibleIncidents.length === 0 ? <section className="rounded-xl border border-border/80 bg-background shadow-sm"><EmptyState icon={search || severity !== "all" || status !== "all" || category !== "all" || assignee !== "all" ? Search : CheckCircle2} title={incidents.length === 0 ? "No incidents reported" : "No incidents match these filters"} description={incidents.length === 0 ? "When your team reports an issue, it will appear here for everyone to coordinate." : "Try adjusting your search or filters to see more incidents."} action={incidents.length > 0 ? <Button variant="outline" size="sm" onClick={clearFilters}>Clear filters</Button> : undefined} className="py-24" /></section> : <section className="overflow-hidden rounded-xl border border-border/80 bg-background shadow-sm"><div className="flex items-center justify-between border-b border-border/70 px-5 py-4 sm:px-6"><div><h3 className="font-semibold">All incidents</h3><p className="mt-1 text-xs text-muted-foreground">Updated automatically as your team responds.</p></div><span className="text-xs text-muted-foreground">{visibleIncidents.length} shown</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1040px] text-left"><thead className="bg-muted/35 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><tr><th className="px-5 py-3">Incident</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Assignment</th><th className="px-5 py-3">Reported</th></tr></thead><tbody>{visibleIncidents.map((incident) => <IncidentRow key={incident.id} incident={incident} canAssign={canAssign} teamMembers={onlineTeamMembers} actor={userProfile} />)}</tbody></table></div></section>}
 
-      {!loading && !error && visibleIncidents.length > 0 && <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Clock3 className="size-3.5" />Sorted by {sortOrder === "severity" ? "severity" : sortOrder === "newest" ? "newest" : "oldest"}</span><span className="flex items-center gap-1.5"><UserRound className="size-3.5" />Assignments appear as your team responds</span></div>}
+      {!loading && !error && visibleIncidents.length > 0 && <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Clock3 className="size-3.5" />Sorted by {sortOrder === "severity" ? "severity" : sortOrder === "newest" ? "newest" : "oldest"}</span><span className="flex items-center gap-1.5"><UserRound className="size-3.5" />{onlineTeamMembers.length} mobile member{onlineTeamMembers.length === 1 ? "" : "s"} online</span></div>}
     </div>
   );
 }
